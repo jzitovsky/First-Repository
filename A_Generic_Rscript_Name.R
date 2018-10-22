@@ -12,7 +12,7 @@ library(nortest)
 library(foreign)
 
 #reading in the three datasets
-pol = read.spss("~/home/joshz/Typology-17/Typology 17 public.sav", to.data.frame = T)
+pol = read.spss("~/home/joshz/politics.sav", to.data.frame = T)
 crime = read_csv("~/home/joshz/Crime.csv")
 governors = read_csv("~/home/joshz/Governors.csv")
 
