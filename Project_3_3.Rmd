@@ -1,0 +1,239 @@
+---
+title: "The Relationship Between Politics and Crime"
+author: "Josh Zitovsky"
+date: "10/18/2018"
+output: html_document
+---
+
+---
+  title: "BIOS 611 Project 2"
+  author: "Josh Zitovsky (PID:730275298)"
+  date: "`r format(Sys.time(), '%m/%d/%Y')`"
+  output: html_document
+---
+
+<style>
+    body .main-container {
+        max-width: 950px;
+    }
+</style>
+
+**Note: The SATs, which test material covered in a standard high school cirriculum, cover very basic statistics, including basic summary statistics and basic graphs (e.g. means, medians, standard deviations, boxplots, scatterplots, best-fit lines). The professor said I could assume my audience is college-educated, and thus I assume the audience to be fimiliar with most of these topics (i.e. I will not do into detail explaining what a mean and standard deviation is), though even people without this background should still be able to get the "big picture" of the analysis and conclusions. I do explain more advanced topics, including statistical tests, p-values and violin plots, when neccesary to help readers get a general idea of what the conclusions are and why. Also, the various different statistical assumptions that were tested (e.g. normality) is in a separate file (with a link at the bottom) that is not part of the blog post. The professor said that it was acceptable to not include assumption testing details in the blog post. Please grade the separate document detailing the assumptions as code, not as part of the blog post** 
+
+### Introduction ###
+
+
+Criminal justice and politics have always been heavily intertwined. This was even evident as far back as the ratification of the U.S. Constitution, when Federalists and Anti-Federalists quarreled over whether to add certain amendments, collectively known today as the Bill of Rights. Many of these amendments were instrumental to American criminal justice, from the right to a speedy trial to the right against unreasonable search and seizures. 
+
+Criminal justice remains just as relevant today, especially at the local and state levels. Studies show that state crime rates, particularly state violent crime rates, play a significant role in gubernatorial elections (Cummins 2009). And while there have been some recent bipartisan efforts in the area of criminal justice reform, there are still fundamental disagreements between the two major political parties on how to reduce violent crime. In addition to official positions of the parties themselves, Democratic and Republican voters also have very different attitudes when it comes to crime-related issues, from confidence in the police (Brown 2017) to capital punishment (Pew Research 2017). Keeping these facts in mind, there are two questions which one should be curious about. First, does one political party do a better job than the other at maintaining public safety (reducing violent crime) at the state level? And second, are those in higher-crime states more likely to have certain political leanings?
+
+To answer these questions, I used three different datasets. The first dataset comes from an online publication by the Federal Bureau of Investigation, "2017 Crime in the United States", and detail the number of violent crimes and population sizes by state. The second dataset comes from a webpage by Netstate.com (which got its data from public records) and gives the political affiliation of each state's governor. The third data set comes from a survey conducted by Pew Research Center in 2017 called "Political Typology 2017", which involved interviews from thousands of participants regarding their political attitudes across all 50 states. The participants were chosen at random so as to be representative of the statewide and nationwide populations. From this third data set, I computed the proportion of surveyed individuals that were Democrats, Republicans and independents, for each state, to get a rough estimate of the percentage of each state that was Democrat, Republican and independent. I then made three figures to answer the questions posed above.
+
+```{r, echo=F, message=F}
+#looding required packages
+library(tidyverse) 
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+
+#reading in the data set produced by "A_Generic_Rscript_Name.R"
+pooledData = read.csv("~/home/joshz/pooledData.csv")
+
+#attaching data so that variables can be referenced without having to put 'pooledData$' every time
+attach(pooledData)
+```
+
+### Figure 1: Summary Statistics ###
+```{r, echo=F}
+###Part D.1: Producing figure 1 - a summary statistics table with mean, sd, min and max for quantitative vars and a frequency table for categoricals###
+
+#creating empty 5x4 table with row names being the variable names, and column names being the summary stat function names
+summaryTable = matrix(nrow=5, ncol=4,                                                                   
+                   dimnames=list(Variable = c("crimeRate", "percDem", "percRep", "percInd", "percOth"), 
+                                 c("mean", "sd", "min", "max"))                                         
+                   )
+
+#for each cell in the table above, the function whose name is the column is applied to the variable whose name is the row, and the result is stored in the cell                   
+for (i in rownames(summaryTable)) {
+  for (j in colnames(summaryTable)) {
+    summaryTable[[i, j]] = get(j)(get(i))                                                                 
+  }
+}
+
+#multiplying proportion values by 100 to covert to '%' format (e.g. .2 ---> 20%)
+summaryTable[seq(2,5),] = summaryTable[seq(2,5),]*100  
+
+#rounding values to the nearest tenth to improve readability/interprebility, and removing any useless trailing zeros
+summaryTable = formatC(summaryTable, digits=1, format="f", drop0trailing = T)
+
+#adding the state name associated with the minimum and maximum value for each variable
+for (i in rownames(summaryTable)) {
+  for (j in c("min", "max")) {
+      string = state[get(i) == get(j)(get(i))] 
+      
+      #making only the first letter of each word capital
+      string = str_to_lower(string)                                                                 #making everything lowercase
+      str_sub(string, 1, 1) = str_to_upper(str_sub(string, 1, 1))                                   #making first letter uppercase
+      find1 = str_locate(string, "\\s")[[1]]                                                     
+      if (!is.na(find1)) str_sub(string, find1+1, find1+1) = str_to_upper(str_sub(string, find1+1, find1+1)) #making first letter of second word uppercase (assuming a second word exists)
+      
+      if (length(string)==1) summaryTable[[i,j]] = paste(summaryTable[[i, j]], " (", string, ")", sep="")
+      else if (length(string)>1) summaryTable[[i,j]] = paste(summaryTable[[i, j]], " (", "MULTIPLE STATES", ")", sep="")
+    }
+}
+
+#changing row and column names to a viewer-freindly format
+colnames(summaryTable) = c("Mean", "Standard Deviation", "Min", "Max")
+rownames(summaryTable) = c("Crime Rate", "Percent Democrat", "Percent Republican", "Percent Independent", "Percent Other Party")
+
+
+#creating an additional frequency table for governing party
+frequencyTable = as.data.frame(table(governorParty), row.names=NULL)  #creating frequency table
+colnames(frequencyTable) = c("Governing Party", "States")             #using more viewer-freindly column maes
+frequencyTable = frequencyTable[order(desc(frequencyTable$States)),]  #putting levels in decreasing order to improve readability and appearance
+
+
+#outputting quantitative summary statistics table with a caption to indicate how numbers were rounding 
+kable(summaryTable) %>% kable_styling %>%
+   add_footnote("*Crime Rates are rounded to the nearest whole number and percentages are rounded to the nearest tenth.", notation="none")
+
+#outputting frequency statistics table
+kable(frequencyTable, row.names=F) %>% kable_styling()
+
+```
+
+The first figure (Figure 1) is a table summarizing the distributions of computed variables across the states. This includes crime rates (the number of murders, rapes, robberies and aggravated assaults per 100,000 residents), Democrat proportions (the proportion of individuals who were surveyed and were Democrat), Republican proportions, independent proportions, other party proportions (where 'other party' includes third parties such as the green party) and governing parties (the party of the governor). We can see from this table that the average state had 377.1 violent crimes per 100,000 residents in 2017, with a standard deviation of 148.9. If violent crime rates did not vary much between states, we would expect all states to have violent crimes very close to 377.1. However, in this case, the standard deviation of violent crime rates is not at all small compared to the mean, and violent crime rates can vary from 121 (Maine) all the way to 829 (Alaska). This suggests that crime rates can vary quite a bit between states. If the political party in charge played as much of a role in reducing crime as politicians would have us believe, we would expect the much of this variation to be explained by the governing party.  
+
+### Figure 2: Violin Plots of Violent Crime Rate by Governing Political Party ###
+```{r, echo=F, warning=F, message=F}
+###Part D.2: Producing figure 2 - Violin plots of crime rates for Democrat-governed and Republican-governed states, together with error bars (95% confidence interval bars) for the means###
+
+
+#Removing the one independent state (not enough independent states to get their own violin)
+pooledData2 = filter(pooledData, governorParty != "Independent")
+
+#Extracting neccesary information to plot the error bars
+democratCrime = pooledData2$crimeRate[pooledData2$governorParty=="Democrat"]          #vector of crime rates for Democratic states
+republicanCrime = pooledData2$crimeRate[pooledData2$governorParty=="Republican"]      #vector of crime rates for Republican states
+meanDem = mean(democratCrime)                                                         #mean crime rate for Democratic states 
+lowerDem = meanDem - 1.96*sd(democratCrime)/sqrt(length(democratCrime))               #lower bound of 95% C.I. for mean (for error bar length)
+upperDem = meanDem + 1.96*sd(democratCrime)/sqrt(length(democratCrime))               #upper bound of 95% C.I. for mean (for error bar length)
+meanRep = mean(republicanCrime)                                                       #mean crime rate for Republican states
+lowerRep = meanRep - 1.96*sd(republicanCrime)/sqrt(length(republicanCrime))           #lower bound of 95% C.I. for mean (for error bar length)
+upperRep = meanRep + 1.96*sd(republicanCrime)/sqrt(length(republicanCrime))           #upper bound of 95% C.I. for mean (for error bar length)
+
+
+#Constructing ggplot object containing violin plots of crime rates for Republican-led and Democrat-led states
+partyViolin = ggplot() +
+  geom_violin(data=pooledData2, 
+              aes(x=governorParty, y=crimeRate, fill=governorParty),           #giving each violin its own color ('fill' aesthetic)
+              alpha=0.8,                                                       #adds transparency to violin colors (I think this looks better)
+              width=0.7) +                                                     #adding more space in between violins to insert the means and error bars
+  scale_fill_manual(values=c("blue", "red")) +                                 #making the Democrat violin blue and the Republican violin red
+  scale_y_continuous(breaks=seq(0, 1000, by=200),                              #making more tick marks to improve precision
+                     sec.axis=sec_axis(~., breaks=seq(0,1000,by=200))) +       #adding left-hand y-axis, which will be closer to the republican violin 
+  guides(fill=F) +                                                             #removing legend for 'fill' aesthetic 
+  labs(x = "Governing Party", y = "Crime Rate") +                      #making axis labels easier to understand
+  coord_cartesian(xlim = c(1.2, 1.7))                                          #trimming negative/blank space near the ends of the graph
+
+
+#Adding plots of estimates of the mean crime rates for Republican and Democrat states, together with standard error bars (95% confidence interval bars) for those means
+violinWithErrors = partyViolin + 
+  scale_fill_manual(values=c("blue", "red")) + 
+  geom_point(data=pooledData2, x=1.45, y=meanDem, size=3, color="blue") +                               #plotting Democrat crime rate mean
+  geom_errorbar(aes(x=1.45, ymax=upperDem, ymin=lowerDem), stat='identity', color="blue", width=0.15) + #adding s.e. bars going through the mean point
+  geom_point(data=pooledData2, x=1.7, y=meanRep, size=3, color="red") +                                 #plotting Republican crime rate mean
+  geom_errorbar(aes(x=1.7, ymax=upperRep, ymin=lowerRep), stat='identity', color="red", width=0.15) +   #adding s.e. bars going through the mean point
+  labs(caption = "*The points in the middle are the mean crime rates for Democrat and Republican states, and the bars across those points  \nare error bars (95% confidence interval bars) for those means") + 
+  theme(plot.caption = element_text(size=8, h=0)) 
+
+
+#outputting plot
+violinWithErrors
+```
+
+```{r, echo=F, results="hide"}
+#Conducting tests to compare crime rates between Democrat and Republican-governed states (the results of which will suppliment figure 2)
+(ttest = t.test(democratCrime, republicanCrime))                                  #T-test to compare means (makes parametric assumptions)
+(wilcox = wilcox.test(democratCrime, republicanCrime))                            #Wilcoxon signed-rank test to compare central tendencies
+
+#wilcoxon and t-test both fail to reject the null. Conclude no significant differences in distributional central tendencies.
+```
+
+From figure 2, it does not appear that either political party is better than the other at reducing violent crimes. Figure 2 compares violins of crime rates between states with Democratic governors and states with Republican governors (the blue and red objects to to the very left and right of the figure). The length of the violins show the possible range of crime rates, and areas where violins are wider are the areas where crime rates are most commonly observed. We can see from the violins that crime rates are commonly observed across a wide range of values, particularly for republican-led states. In other words, there is a large amount of variation in crime rates that governing party does not explain. The points in the center of the figures represent the average crime rates for Democrat states (blue) and for Republican states (red). Although average Repbulican crime rates are higher than average Democrat crime rates, this difference is pretty small relative to how much crime rates can vary within the parties. We can also see that this difference is small with error bars. Error bars (the lines going through the plotted means) represent the degree of uncertainty in an estimate (in this case, the mean). If two means and their error bars are a large distance from each other, this would indicate that the observed difference is beyond what would normally occur by chance. However, in this case, the two means are pretty close to each other relative to the length of their respective error bars, which questions whether the observed difference is accurate. 
+
+To suppliment our findings from the graph, we computed the looked at the p-values of two statistical tests, the t-test and the Wilcoxon signed-rank test, to further investigate whethere there is a meaningful difference in crime rates. If a test gives a p-value of greater than 0.05, then the test concludes that the difference is not statistically signficant. In this case, the t-test gives a p-value of 0.154 and the Wilcoxon rank-sum test gives a p-value of 0.305, and so both tests give p-values of greater than 0.05. Thus, we can conclude from both tests that the difference in average crime rates is small enough that it can be explained by chance alone, and we cannot conclude with high confidence that there is a true association between violent crime rate and governing party. This conclusion is consistent with what we observed from the graph. 
+
+
+
+
+### Figure 3: Relationship between Political Views and Violent Crime at the State Level ###
+```{r, warning=F, echo=F, results="hide"}
+###Part D.3: Producing figure 3 - a scatterplot matrix of crime rates vs. political leanings, together with trend lines and correlation estimates###
+
+#extracting Pearson's correlation estimates and p-values between crime rates and predictors of interest (which will be put into figure 3)
+corValues = matrix(nrow=4, ncol=2,                                                      #making a 2x4 empty matrix to store these extracted values
+                   dimnames=list(c("percDem", "percRep", "percInd", "percOth"),         #the rows will be the predictors 
+                                 c("corEstimate", "pValue")))                           #the columns will be vectors of estimates and p-values
+
+for (i in rownames(corValues)) {  
+  corValues[[i,"corEstimate"]] = cor.test(get(i), crimeRate, method="pearson")$estimate #extracting estimates into matrix
+  corValues[[i,"pValue"]] = cor.test(get(i), crimeRate, method="pearson")$p.value       #extracting p-values into matrix
+}
+
+#rounding estimates and p-values to the nearest thousandth, to improve readability and interpretability 
+corValues = apply(corValues, 2, round, digits=3)
+
+
+#making a function that creates a scatterplot object of crimeRate vs. an inputted predictor 
+extractPlot = function(predictor, xLabel, lineColor, corEstimate, corPValue, xaxisTickMarks = waiver()) {
+  plot = ggplot(pooledData, mapping=aes(predictor, crimeRate)) +
+  geom_point() +                                                           #adding points (scatterplot)                        
+  geom_smooth(se=F, method="lm", color=lineColor) +                        #adding trend line (with inputted line color)
+  labs(x=xLabel, y="Crime Rate") +                                         #adding x and y-axis labels (based on inputted x-axis label)
+  scale_x_continuous(breaks=xaxisTickMarks) +                              #using inputted vector as x-axis tick marks
+  ggtitle(paste("correlation =", corEstimate, " p-value =", corPValue)) +  #adding inputted correlation estimate and p-value
+  theme(plot.title = element_text(size=8, vjust=-1))                       #shrinking text of correlation information  
+  return(plot)
+}
+
+#extracting scatterplots of crime rates vs. Democrat percentage, Republican percentage, independent percentage and other party percentage 
+plotDem = extractPlot(percDem, "Percent Democrat", "blue", corValues[["percDem","corEstimate"]], corValues[["percDem","pValue"]], seq(0, 0.5, by=0.1))
+plotRep = extractPlot(percRep, "Percent Republican", "red", corValues[["percRep","corEstimate"]], corValues[["percRep","pValue"]])
+plotInd = extractPlot(percInd, "Percent Independent", "purple", corValues[["percInd","corEstimate"]], corValues[["percInd","pValue"]])
+plotOth = extractPlot(percOth, "Percent Other Party", "green", corValues[["percOth","corEstimate"]], corValues[["percOth","pValue"]])
+
+#creating a caption to be used in the final graph
+caption=textGrob("*Trend lines were estimated using ordinary least squares. Correlations and p-values are rounded to the nearest thousandth.",gp=gpar(fontsize=8,font=3), hjust=0.5)
+
+#combining the scatterplots (and caption) created above into one figure
+grid.arrange(plotDem, plotRep, plotInd, plotOth, ncol=2, bottom=caption)
+
+```
+
+Figure 3 indicates that those in more violent states do not tend to have different political leanings than those in less violent states. The scatterplots do not appear to show any kind of pattern, and the trend lines show that any trend is either very small or non-existent. Furthermore, we used p-values from Pearson’s correlation tests to determine whether the correlations of interest were statistically significant. We can see from figure 3 that the p-values for all correlations are greater than 0.05. Again the conclusions from statitical tests agree with conclusions from our graphs, which in this case is that all of the correlations are small enough that they can be explained by chance alone, and that we cannot conclude a true (linear) relationship between crime rate and any of the predictors of interest. 
+
+Several statistical methods were used that require certain conditions to hold for the conclusions to be accurate. For example, the method used to create the trend lines in figure 3, ordinary least squares, only gives accurate estimates if certain assumptions hold about the residuals, or the distances between the trend lines and the actual points. Furthermore, one of the statistical tests mentioned under figure 2, the t-test, only gives accurate conclusions if the the crime rates follow a specific distribution called a 'normal distribution'. The statistical details are beyond this blog post, but it is worth noting that all neccesary conditions were tested and satisfied for our utilized methods to give accurate conclusions. For those who are interested and have a more advanced statistical background, the R code I used to test these various statistical assumptions (as well as the associated output and comments) can be downloaded here: https://github.com/jzitovsky/First-Repository/blob/master/assumptions.html. 
+
+### Conclusions ###
+
+With crime such a major issue in politics (especially state and local politics), it is surprising to learn that those in states with more violent crime are not significantly more likely to have different political learnings than those in states with less violent crime. It is also quite interesting to learn that neither Democratic nor Republican governors are much more effective at reducing violent crime at the state level, despite state crime rates being significantly associated with electoral decisions and outcomes. Perhaps one take away from all of this is that political parties need to do a better job in promoting policies for curtailing violent crime, policies that both resonate with voters and are more effective than those currently implemented. Election races have been quite close in modern America, and if one political party can acurately proclaim to be better at reducing murder and violence then its opponents, it could be enough to shift public support in its favor.
+
+
+
+### References ###
+1. Brown, A. (2017). Wide partisan gap in views of police. *Pew Research Center*. Retrieved from http://www.pewresearch.org/fact-tank/2017/01/13/republicans-more-likely-than-democrats-to-have-confidence-in-police/ 
+2. Cummins, J. (2009). Issue Voting and Crime in Gubernatorial Elections. *Social Science Quarterly*, 90(3), 632-651. doi:10.1111/j.1540-6237.2009.00635.x  
+3. Federal Bureau  of Investigation. (2017). *2017 Crime in the United States* [Data file]. Retrieved from https://ucr.fbi.gov/crime-in-the-u.s/2017/crime-in-the-u.s.-2017/downloads/download-printable-files.   
+4. Jones, J.M. (2017). U.S. Death Penalty Support Lowest Since 1972. *Gallup*. Retrieved from https://news.gallup.com/poll/221030/death-penalty-support-lowest-1972.aspx  
+5. 50 State Governors. *Netstate.com*. Retrieved from http://www.netstate.com/states/tables/st_governors.htm. 
+6. Pew Research Center. (2017). *Political Typology 2017* [Data set]. Retrieved from http://www.people-press.org/dataset/political-typology-2017/. 
+
+
+
+
+
+
+

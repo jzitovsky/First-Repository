@@ -1,0 +1,80 @@
+---
+title: "Statistical Assumptions Testing"
+author: "Josh Zitovsky"
+date: "10/22/2018"
+output: html_document
+---
+
+# NOTE: This is only meant show the TAs my code when deciding on what methods to use in the blog post. It is a separate document from the blog post, and should be graded as code, not as part of the blog post.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, warning=F, message=F}
+###Assumptions testing 1####
+#We used the student's t-test to determine whether there were differences in crime rates between governing parties, and thus we should make sure that the conclusions from this t-test is accurate
+
+#loading required packages
+library(nortest)
+library(lmtest)
+
+#loading data
+pooledData = read.csv("~/Desktop/pooledData.csv")
+
+#attaching final joined dataset so that variables can be referenced without having to do 'pooledData$' every time
+attach(pooledData)
+
+#Conducting shapiro-wilk normality tests and making normal q-q plots for Democrat and Republican crime rates
+democratCrime = crimeRate[governorParty=="Democrat"]
+republicanCrime = crimeRate[governorParty=="Republican"]
+shapiro.test(democratCrime)
+shapiro.test(republicanCrime)
+#Both tests give p-values above even 0.1, showing that there is not even a marginally significant departure from normality detected for either group. However, as there are only 16 states governed by Democrats, the number of Democrat crime rate observations may be too small to detect if normality is approximately followed. Recall that, when variances are equal, a t-test is equivelant to an standard ANOVA test with 2 groups. For ANOVA testing, it is common to pool observations between groups together to test normality, by testing the residuals of an estimated ANOVA model. In an ANOVA model, the residuals are the observed values minus the means of their respective groups.
+
+residuals1 = democratCrime - mean(democratCrime)             #ANOVA residuals of crime rates in democrat-led states
+residuals2 = republicanCrime - mean(republicanCrime)         #ANOVA residuals of crime reates in republican-led states
+residuals = c(residuals1, residuals2)                        #combining residuals
+ad.test(residuals)                                           #Anderson-darling test for normality of residuals
+qqnorm(residuals); qqline(residuals)                         #plotting normal q-q plot for residuals
+
+#From the test and plot, we can see that the residuals from an ANOVA model strongly approximates a normal distribution. This further supports that crime rates within each group are normally distribution
+
+
+
+
+###Assumptions testing 2###
+#We used OLS to estimate the fiugre 3 trend lines, and thus we should make sure that OLS is an appropiate method for the data. Furthermore, pearson correlation estimates and pearson correlation tests are identical to the square root of the R-squared statistic and F-tests of simple linear regression. If regression assumptions, particularly of linearity, are satisfied, this implies that the use of pearson's correlation estimates and pearson's correlation tests (which were also included in figure 3) are also appropiate.
+
+
+#making a function that returns TRUE if normality and homogeneous variance tests are passed for all models in an input named list, and makes residual plots for each model
+checkModels = function(lines) {
+  par(mfrow=c(2,2))                                                                    #fixing each figure to have all four residual graphs of each model, to improve interpretability
+  regTestsPassed = TRUE                            
+  for (i in seq_along(lines)) {
+    plot(lines[[i]], main="")                                                           #making residual plots
+    title(sub=names(lines)[i], line=4, adj=1, font.sub=2, col.sub="blue", cex.sub=1.5)  #mapping unique subtitle to each plot, so I know which plot is associated with which model
+    normalityTestP = ad.test(resid(lines[[i]]))$p.value                                 #extracting p-value for normality test of the residuals
+    homoVarTestP = bptest(lines[[i]])$p.value                                           #extracting p-value for homogeneous variance test of the residuals
+    if (normalityTestP < 0.05 | homoVarTestP < 0.05) regTestsPassed=FALSE;              #regTestsPassed turns FALSE if either normality or homogeneous variance test p-value < 0.05
+  }
+  return(regTestsPassed)
+}
+
+#esimating models used for the trend lines in figure 3, and putting models into a list
+lineOth = lm(crimeRate ~ percOth)
+lineDem = lm(crimeRate ~ percDem)
+lineInd = lm(crimeRate ~ percInd)
+lineRep = lm(crimeRate ~ percRep)
+lines = list('vs. percOth' = lineOth, 'vs. percDem' = lineDem, 'vs. percInd' = lineInd, 'vs. percRep' = lineRep);
+
+#running regression diagnostics
+checkModels(lines)
+
+#checking quadratic relationship between political independent proportion and violent crime 
+percInd2 = percInd^2
+summary(lm(crimeRate ~ percInd + percInd2))
+
+#Conlusions: Normality and homogenous variance assumptions can be assumed not to be violated, based on anderson-darling and bresuch-pagan tests p-values greater than 0.05, as well as the normal Q-Q plots. The residuals vs. leverage plots demonstrate no indication of influential observations (no points with a Cook's distance of greater than 1). The residuals vs. fitted graphs do not suggest strong deviations from linearity, and though political independence proportion shows a potential minor quadratic relationship, adding in a quadratic term does not make an F-test give a p-value of less than 0.05. Thus using OLS to estimate trend lines in figure 3 is appropiate. Furthermore, pearson's correlation coefficient is the same as the R-squared statistic from a simple linear regression, and a correlation test is equivelant to a model F-test. As linear regression assumptions have been satisfied (including linearity), this implies that the use of pearson's correlation tests are also appropiate. 
+```
